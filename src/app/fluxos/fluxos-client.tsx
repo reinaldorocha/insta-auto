@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, Edit3, Loader2, Pause, Play, RefreshCw, Trash2, Workflow } from "lucide-react";
+import { Check, Copy, Edit3, Loader2, Pause, Play, Plus, RefreshCw, Trash2, Workflow } from "lucide-react";
 import { hrefWithAccount } from "@/lib/account-routing";
 import type { Automation, FlowLog } from "@/lib/db/repositories";
 
@@ -22,8 +22,35 @@ export function FluxosClient({ initialAutomations, initialLogs, activeAccountId 
   const [automations, setAutomations] = useState(initialAutomations);
   const [logs] = useState(initialLogs);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
+
+  async function createFlowFromScratch() {
+    setCreating(true);
+    setNotice(null);
+
+    try {
+      const response = await fetch("/api/automations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          account_id: activeAccountId,
+          name: "Novo fluxo",
+          triggers: ["comments"],
+          keywords: [],
+          match_type: "contains",
+          welcome_dm: "Oi! Toque no botao abaixo para receber o link.",
+        }),
+      });
+      const result = (await response.json().catch(() => null)) as { data?: Automation; error?: string } | null;
+      if (!response.ok || !result?.data) throw new Error(result?.error || "Nao consegui criar o fluxo.");
+      router.push(hrefWithAccount(`/fluxos/${result.data.id}/editar`, activeAccountId));
+    } catch (error) {
+      setNotice({ tone: "error", text: error instanceof Error ? error.message : "Erro ao criar fluxo." });
+      setCreating(false);
+    }
+  }
 
   const stats = useMemo(() => {
     const active = automations.filter((automation) => automation.active).length;
@@ -117,10 +144,16 @@ export function FluxosClient({ initialAutomations, initialLogs, activeAccountId 
             <code className="rounded-md border border-[var(--ms-border)] bg-[var(--ms-surface)] px-2 py-1 text-xs" key={variable}>{variable}</code>
           ))}
         </div>
-        <button className="btn-secondary" onClick={refreshPage} type="button" disabled={refreshing}>
-          {refreshing ? <Loader2 className="animate-spin" size={16} /> : <RefreshCw size={16} />}
-          Atualizar
-        </button>
+        <div className="flex items-center gap-2">
+          <button className="btn-secondary" onClick={refreshPage} type="button" disabled={refreshing}>
+            {refreshing ? <Loader2 className="animate-spin" size={16} /> : <RefreshCw size={16} />}
+            Atualizar
+          </button>
+          <button className="btn-primary" onClick={createFlowFromScratch} type="button" disabled={creating}>
+            {creating ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />}
+            Criar fluxo do zero
+          </button>
+        </div>
       </div>
 
       {notice ? (
@@ -168,9 +201,21 @@ export function FluxosClient({ initialAutomations, initialLogs, activeAccountId 
               </div>
             </article>
           )) : (
-            <div className="panel grid place-items-center p-10 text-center">
-              <Workflow className="text-[var(--ms-muted)]" size={32} />
-              <p className="mt-3 text-sm text-[var(--ms-muted)]">Nenhum fluxo criado ainda.</p>
+            <div className="panel grid place-items-center p-12 text-center">
+              <Workflow className="text-[var(--ms-muted)]" size={40} />
+              <h3 className="mt-3 text-base font-semibold">Nenhum fluxo criado ainda</h3>
+              <p className="mt-1 max-w-sm text-sm text-[var(--ms-muted)]">
+                Crie um fluxo visual do zero com blocos de gatilhos, mensagens, botoes e regras de seguidor.
+              </p>
+              <button
+                type="button"
+                className="btn-primary mt-4"
+                onClick={createFlowFromScratch}
+                disabled={creating}
+              >
+                {creating ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />}
+                Criar fluxo do zero
+              </button>
             </div>
           )}
         </div>
