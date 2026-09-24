@@ -9,21 +9,12 @@ export default function Loading() {
           <BrandMark className="size-14 object-cover" priority size={56} />
         </div>
         <div>
-          <p className="text-sm font-bold uppercase tracking-[0.2em] text-[var(--ms-muted)]">UaiFlow</p>
-          <h1 className="mt-2 text-2xl font-bold tracking-normal">Carregando sua area</h1>
-          <p className="mt-2 text-sm leading-6 text-[var(--ms-muted)]">Buscando automacoes, conta conectada e dados do workspace.</p>
+          <p className="text-sm font-bold uppercase tracking-[0.2em] text-muted-foreground">UaiFlow</p>
+          <h1 className="mt-2 text-xl font-semibold tracking-normal">Carregando...</h1>
         </div>
-        <div className="mx-auto inline-flex items-center gap-2 rounded-lg border border-[var(--ms-border)] bg-[var(--ms-surface)] px-4 py-3 text-sm font-semibold shadow-sm">
-          <Loader2 className="size-4 animate-spin text-[var(--ms-primary)]" />
+        <div className="mx-auto inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium shadow-sm">
+          <Loader2 className="size-4 animate-spin text-primary" />
           Aguarde um instante
-        </div>
-        <div className="grid gap-3 text-left">
-          <div className="h-20 animate-pulse rounded-lg bg-[var(--ms-surface-soft)]" />
-          <div className="grid grid-cols-3 gap-3">
-            <div className="h-16 animate-pulse rounded-lg bg-[var(--ms-surface-soft)]" />
-            <div className="h-16 animate-pulse rounded-lg bg-[var(--ms-surface-soft)]" />
-            <div className="h-16 animate-pulse rounded-lg bg-[var(--ms-surface-soft)]" />
-          </div>
         </div>
       </section>
     </main>

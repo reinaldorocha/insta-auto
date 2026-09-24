@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
-const FEEDBACK_DELAY_MS = 180;
+const FEEDBACK_DELAY_MS = 100;
 const SLOW_FEEDBACK_MS = 2500;
 const SAFETY_TIMEOUT_MS = 9000;
 
@@ -85,19 +85,23 @@ export function LoadingFeedback() {
   if (!visible) return null;
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-[100] grid place-items-center bg-background/45 backdrop-blur-[2px]" aria-live="polite" aria-busy="true">
-      <div className="absolute inset-x-0 top-0 h-1 overflow-hidden bg-primary/10">
+    <div className="pointer-events-none fixed inset-0 z-[100]" aria-live="polite" aria-busy="true">
+      <div className="absolute inset-x-0 top-0 h-1 overflow-hidden bg-primary/20">
         <div className="h-full w-1/3 animate-[loading-bar_1.1s_ease-in-out_infinite] rounded-full bg-primary" />
       </div>
-      <div className="grid min-w-56 place-items-center gap-3 rounded-lg border border-border bg-card px-6 py-5 text-card-foreground shadow-lg">
-        <Loader2 className="size-6 animate-spin text-primary" />
-        <div className="text-center">
-          <p className="text-sm font-semibold">{slow ? "Ainda carregando" : "Carregando"}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {slow ? "A Meta ou o Supabase podem demorar um pouco." : "Preparando a proxima tela..."}
-          </p>
+      {slow && (
+        <div className="fixed inset-0 grid place-items-center bg-background/40 backdrop-blur-[2px] animate-in fade-in duration-200">
+          <div className="grid min-w-56 place-items-center gap-3 rounded-lg border border-border bg-card px-6 py-5 text-card-foreground shadow-lg">
+            <Loader2 className="size-6 animate-spin text-primary" />
+            <div className="text-center">
+              <p className="text-sm font-semibold">Carregando dados</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Finalizando a consulta...
+              </p>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -14,8 +14,8 @@ export function getPool(): Pool {
 
     globalThis.postgresPool = new Pool({
       connectionString: requireEnv("DATABASE_URL"),
-      max: Number(process.env.DATABASE_POOL_MAX || 1),
-      idleTimeoutMillis: 5_000,
+      max: Math.max(1, Number(process.env.DATABASE_POOL_MAX || 10)),
+      idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 5_000,
       ssl,
     });
