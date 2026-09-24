@@ -33,8 +33,20 @@ services:
     command: >
       sh -c "
         apk add --no-cache curl &&
-        echo 'Cron iniciado: drenando a fila do UaiFlow a cada 60 segundos...' &&
+        echo 'Cron iniciado: drenagem de fila a cada 60s e renovacao diaria de tokens Meta...' &&
+        LAST_REFRESH=0 &&
         while true; do
+          NOW=$$(date +%s)
+          if [ $$((NOW - LAST_REFRESH)) -ge 86400 ]; then
+            echo \"[Cron] Verificando e renovando tokens Meta...\"
+            HTTP_CODE=$$(curl -s -o /dev/null -w \"%{http_code}\" -X POST -H \"x-worker-secret: $${WORKER_SECRET}\" http://app:3000/api/token/refresh)
+            if [ \"$$HTTP_CODE\" = \"200\" ]; then
+              echo \"[Cron] Renovacao de tokens Meta executada com sucesso (HTTP 200).\"
+              LAST_REFRESH=$$NOW
+            else
+              echo \"[Cron] Tentativa de renovar tokens retornou HTTP $$HTTP_CODE. Tentara novamente no proximo ciclo.\"
+            fi
+          fi
           curl -s -X POST -H \"x-worker-secret: $${WORKER_SECRET}\" http://app:3000/api/queue/drain > /dev/null 2>&1
           sleep 60
         done

@@ -1,10 +1,11 @@
-﻿import {
+import {
   claimQueueJobs,
   getConfig,
   getTemplateContext,
   markExpiredDmsSkipped,
   markJobFailed,
   markJobSent,
+  recoverStuckSendingJobs,
   sentDmCountLastHour,
   type QueueJob,
 } from "@/lib/db/repositories";
@@ -21,6 +22,11 @@ const MAX_AUTOMATED_DMS_PER_HOUR = 200;
 const SEND_DELAY_MS = 500;
 
 export async function drainQueue(limit = MAX_JOBS_PER_DRAIN) {
+  const recovered = await recoverStuckSendingJobs();
+  if (recovered > 0) {
+    console.log(`[Queue] ${recovered} mensagem(ns) presa(s) em 'sending' recuperada(s).`);
+  }
+
   await markExpiredDmsSkipped();
 
   const jobs = await claimQueueJobs(Math.min(limit, MAX_JOBS_PER_DRAIN));
@@ -55,7 +61,7 @@ export async function drainQueue(limit = MAX_JOBS_PER_DRAIN) {
     await delay(SEND_DELAY_MS);
   }
 
-  return { processed: jobs.length, sent, failed };
+  return { processed: jobs.length, sent, failed, recovered };
 }
 async function sendJob(job: QueueJob, instagramUserId: string, accessToken: string) {
   const context = await getTemplateContext({ contactId: job.contact_id, automationId: job.automation_id });

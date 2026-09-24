@@ -1291,6 +1291,72 @@ export async function markExpiredDmsSkipped() {
   );
 }
 
+export async function recoverStuckSendingJobs(): Promise<number> {
+  const { rowCount } = await query(
+    `update public.queue
+     set status = case when attempts >= 3 then 'failed' else 'pending' end,
+         claimed_at = null,
+         last_error = case when attempts >= 3 then 'Envio travado repetidamente (worker reiniciado)' else 'Recuperado de envio pendente anterior' end,
+         available_at = case when attempts >= 3 then available_at else now() end
+     where status = 'sending'
+       and (claimed_at is null or claimed_at < now() - interval '3 minutes')`,
+  );
+  return rowCount ?? 0;
+}
+
+export async function listAccountsNeedingTokenRefresh(): Promise<Array<{
+  id: string | null;
+  instagram_username: string;
+  instagram_access_token: string;
+  token_expires_at: string | null;
+}>> {
+  const { rows } = await query<{
+    id: string;
+    instagram_username: string;
+    instagram_access_token: string;
+    token_expires_at: string | null;
+  }>(
+    `select id, instagram_username, instagram_access_token, token_expires_at
+     from public.instagram_accounts
+     where instagram_access_token is not null
+       and (last_token_refresh_at is null or last_token_refresh_at <= now() - interval '1 day')
+       and (
+         token_expires_at is null
+         or token_expires_at <= now() + interval '30 days'
+         or last_token_refresh_at is null
+         or last_token_refresh_at <= now() - interval '7 days'
+       )
+     order by token_expires_at asc nulls first`,
+  );
+
+  if (rows.length > 0) return rows;
+
+  const { rows: configRows } = await query<{
+    instagram_username: string;
+    instagram_access_token: string;
+    token_expires_at: string | null;
+  }>(
+    `select instagram_username, instagram_access_token, token_expires_at
+     from public.config
+     where id = true
+       and instagram_access_token is not null
+       and (last_token_refresh_at is null or last_token_refresh_at <= now() - interval '1 day')
+       and (
+         token_expires_at is null
+         or token_expires_at <= now() + interval '30 days'
+         or last_token_refresh_at is null
+         or last_token_refresh_at <= now() - interval '7 days'
+       )`,
+  );
+
+  return configRows.map((c) => ({
+    id: null,
+    instagram_username: c.instagram_username || "default",
+    instagram_access_token: c.instagram_access_token,
+    token_expires_at: c.token_expires_at,
+  }));
+}
+
 export async function sentDmCountLastHour(accountId?: string | null) {
   const { rows } = await query<{ count: string }>(
     accountId

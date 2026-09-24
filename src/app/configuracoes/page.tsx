@@ -8,7 +8,12 @@ import { getCurrentWorkspaceContext } from "@/lib/workspace";
 
 export const dynamic = "force-dynamic";
 
-export default async function ConfiguracoesPage() {
+type Props = {
+  searchParams?: Promise<{ refreshed?: string; error?: string; msg?: string }>;
+};
+
+export default async function ConfiguracoesPage({ searchParams }: Props) {
+  const query = searchParams ? await searchParams : {};
   const workspaceContext = await getCurrentWorkspaceContext();
   const config = await getConfig();
   const appBaseUrl = getAppBaseUrl();
@@ -31,6 +36,25 @@ export default async function ConfiguracoesPage() {
           </PendingLink>
         }
       />
+
+      {query.refreshed && Number(query.refreshed) > 0 ? (
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3.5 text-sm text-emerald-400">
+          <CheckCircle2 size={18} />
+          <span>Token Meta renovado com sucesso! Validade estendida por 60 dias.</span>
+        </div>
+      ) : null}
+      {query.msg === "Tokens_em_dia" ? (
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-3.5 text-sm text-cyan-400">
+          <CheckCircle2 size={18} />
+          <span>Seu token Meta já está atualizado e ativo. A Meta permite renovação após 24 horas da última emissão.</span>
+        </div>
+      ) : null}
+      {query.error ? (
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3.5 text-sm text-amber-400">
+          <ShieldCheck size={18} />
+          <span>{decodeURIComponent(query.error)}</span>
+        </div>
+      ) : null}
 
       <section className="grid gap-4 md:grid-cols-3">
         <StatusCard icon={<Camera size={20} />} label="Conta" value={connected ? `@${config.instagram_username}` : "Nao conectada"} />
@@ -66,7 +90,7 @@ export default async function ConfiguracoesPage() {
               <InfoRow label="Webhook assinado em" value={formatDate(config.webhook_subscribed_at)} />
             </div>
             <div className="mt-5 flex flex-wrap gap-2">
-              <PendingLink className="btn-secondary" href="/api/token/refresh" pendingLabel="Renovando...">
+              <PendingLink className="btn-secondary" href="/api/token/refresh?redirect=/configuracoes&force=1" pendingLabel="Renovando...">
                 <RefreshCcw size={16} />
                 Renovar token
               </PendingLink>
