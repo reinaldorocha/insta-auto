@@ -1,0 +1,40 @@
+﻿services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    container_name: uaiflow-app
+    restart: unless-stopped
+    ports:
+      - "3020:3000"
+    env_file:
+      - .env
+    environment:
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+      - AUTO_MIGRATE=true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  cron:
+    image: alpine:latest
+    container_name: uaiflow-cron
+    restart: unless-stopped
+    depends_on:
+      - app
+    env_file:
+      - .env
+    command: >
+      sh -c "
+        apk add --no-cache curl &&
+        echo 'Cron iniciado: drenando a fila do UaiFlow a cada 60 segundos...' &&
+        while true; do
+          curl -s -X POST -H \"x-worker-secret: $${WORKER_SECRET}\" http://app:3000/api/queue/drain > /dev/null 2>&1
+          sleep 60
+        done
+      "
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

@@ -120,6 +120,9 @@ DEFAULT_SUPABASE_URL="http://${HOST_IP}:${ENVOY_PORT}"
 read -r -p "2. URL pública do Supabase [Padrão: $DEFAULT_SUPABASE_URL]: " INPUT_SUPABASE_URL
 SUPABASE_URL="${INPUT_SUPABASE_URL:-$DEFAULT_SUPABASE_URL}"
 SUPABASE_URL=$(echo "$SUPABASE_URL" | sed -E 's|/+$||')
+if [[ ! "$SUPABASE_URL" =~ ^https?:// ]]; then
+  SUPABASE_URL="https://$SUPABASE_URL"
+fi
 NEXT_PUBLIC_SUPABASE_URL="$SUPABASE_URL"
 
 # 7. Perguntar/Confirmar Senha do Postgres se não detectada

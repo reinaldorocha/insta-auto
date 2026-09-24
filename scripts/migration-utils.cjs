@@ -50,17 +50,12 @@ function createPool() {
     throw new Error("DATABASE_URL nao configurada. Copie .env.example para .env.local e preencha a conexao do Supabase.");
   }
 
-  const ssl =
-    process.env.DATABASE_SSL === "false" || process.env.DATABASE_SSL === "0"
-      ? false
-      : { rejectUnauthorized: false };
-
   const { Pool } = require("pg");
   return new Pool({
     connectionString: process.env.DATABASE_URL,
     max: 1,
     connectionTimeoutMillis: 10_000,
-    ssl,
+    ssl: { rejectUnauthorized: false },
   });
 }
 

@@ -27,11 +27,7 @@ const warnings = [];
 
 if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_URL
   && process.env.NEXT_PUBLIC_SUPABASE_URL !== process.env.SUPABASE_URL) {
-  if (process.env.NEXT_PUBLIC_SUPABASE_URL.includes(".supabase.co") || process.env.SUPABASE_URL.includes(".supabase.co")) {
-    errors.push("NEXT_PUBLIC_SUPABASE_URL e SUPABASE_URL apontam para projetos diferentes.");
-  } else {
-    warnings.push("NEXT_PUBLIC_SUPABASE_URL e SUPABASE_URL sao diferentes (verifique se a comunicacao interna e publica estao corretas).");
-  }
+  errors.push("NEXT_PUBLIC_SUPABASE_URL e SUPABASE_URL apontam para projetos diferentes.");
 }
 
 if (process.env.APP_BASE_URL && process.env.INSTAGRAM_REDIRECT_URI) {

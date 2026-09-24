@@ -52,7 +52,6 @@ npm run release:check # verifica o pacote antes de publicar
 - [Instalacao tecnica](docs/INSTALLATION.md)
 - [Supabase e migrations](docs/SUPABASE.md)
 - [Meta e Instagram](docs/META_INSTAGRAM.md)
-- [Deploy na VPS com Docker](docs/DEPLOY_VPS_DOCKER.md)
 - [Vercel](docs/VERCEL.md)
 - [Onboarding](docs/ONBOARDING.md)
 - [Transferencia](docs/TRANSFER.md)
