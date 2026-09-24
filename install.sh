@@ -171,8 +171,12 @@ ADMIN_SESSION_SECRET=$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urand
 WORKER_SECRET=$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | xxd -p | tr -d '\n')
 WEBHOOK_VERIFY_TOKEN=$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | xxd -p | tr -d '\n')
 
-# 12. Montar DATABASE_URL
-DATABASE_URL="postgresql://postgres:${DB_PASS}@host.docker.internal:${POOLER_PORT}/postgres"
+# 12. Montar DATABASE_URL (conectar direto no container Postgres para evitar exigencia de tenant do Supavisor)
+if [ -n "$DB_CONTAINER" ]; then
+  DATABASE_URL="postgresql://postgres:${DB_PASS}@${DB_CONTAINER}:5432/postgres"
+else
+  DATABASE_URL="postgresql://postgres:${DB_PASS}@host.docker.internal:${POOLER_PORT}/postgres"
+fi
 
 # 13. Gravar o arquivo .env
 echo -e "${BLUE}[*] Gravando arquivo .env...${NC}"
@@ -222,6 +226,15 @@ if [[ "$START_NOW" =~ ^[Ss]$ ]]; then
   echo -e "${BLUE}[*] Construindo e iniciando containers (isso pode levar de 1 a 2 minutos)...${NC}"
   docker compose up -d --build
 
+  # Conectar na rede do Supabase se existir
+  if [ -n "$DB_CONTAINER" ]; then
+    SUPABASE_NET=$(docker inspect "$DB_CONTAINER" --format '{{range $k, $v := .NetworkSettings.Networks}}{{println $k}}{{end}}' 2>/dev/null | head -n1)
+    if [ -n "$SUPABASE_NET" ] && [ "$SUPABASE_NET" != "bridge" ]; then
+      docker network connect "$SUPABASE_NET" uaiflow-app 2>/dev/null || true
+      docker network connect "$SUPABASE_NET" uaiflow-cron 2>/dev/null || true
+    fi
+  fi
+
   # Conectar na rede do Nginx Proxy Manager se existir
   if [ -n "$NPM_CONTAINER" ]; then
     NPM_NET=$(docker inspect "$NPM_CONTAINER" --format '{{range $k, $v := .NetworkSettings.Networks}}{{println $k}}{{end}}' 2>/dev/null | head -n1)
@@ -229,6 +242,11 @@ if [[ "$START_NOW" =~ ^[Ss]$ ]]; then
       docker network connect "$NPM_NET" uaiflow-app 2>/dev/null || true
     fi
   fi
+
+  # Executa migrations agora que a rede com o Postgres esta ativa
+  echo -e "${BLUE}[*] Aplicando migrations no Supabase Postgres...${NC}"
+  docker compose exec app node scripts/migrate.cjs || true
+  docker compose restart app
 
   echo -e "${GREEN}[✓] Containers iniciados com sucesso!${NC}"
 fi
