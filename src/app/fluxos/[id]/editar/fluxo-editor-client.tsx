@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import {
   addEdge,
@@ -27,6 +27,7 @@ import {
   Check,
   CircleHelp,
   Clock3,
+  Download,
   GitBranch,
   KeyRound,
   Link as LinkIcon,
@@ -38,12 +39,14 @@ import {
   Send,
   Sparkles,
   Trash2,
+  Upload,
   UserCheck,
   Workflow,
   Zap,
 } from "lucide-react";
 import type { Automation, AutomationTrigger, DelayMode, FlowEdgeDefinition, FlowNodeDefinition, MatchType, QuickReply, ReplyMode } from "@/lib/db/repositories";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { downloadFlowJsonFile, exportFlowToPackage, parseAndValidateFlowJson } from "@/lib/flow-json";
 
 
 type Props = {
@@ -166,6 +169,7 @@ const defaultEdgeOptions = {
 
 export function FluxoEditorClient({ automation, backHref, accountId, isInstagramConnected }: Props) {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
   const [formState, setFormState] = useState<FlowFormState>(() => automationToFormState(automation));
@@ -364,6 +368,55 @@ export function FluxoEditorClient({ automation, backHref, accountId, isInstagram
     }
   }
 
+  function handleExportJson() {
+    const payload = {
+      ...formStateToPayload(formState, automation.name),
+      flow_nodes: serializeFlowNodes(nodes),
+      flow_edges: serializeFlowEdges(edges),
+    };
+    downloadFlowJsonFile(exportFlowToPackage(payload), formState.name || automation.name);
+    setNotice({ tone: "success", text: "Fluxo exportado como JSON." });
+  }
+
+  function handleImportJsonFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = String(e.target?.result || "");
+        const result = parseAndValidateFlowJson(content);
+        if (!result.ok) {
+          setNotice({ tone: "error", text: result.error });
+          return;
+        }
+
+        const flow = result.data;
+        if (!window.confirm(`Deseja carregar as configuracoes e blocos do arquivo "${flow.name}" nesta tela? As alteracoes atuais nao salvas serao substituidas.`)) {
+          return;
+        }
+
+        const nextFormState = automationToFormState(flow as unknown as Automation);
+        setFormState(nextFormState);
+        const nextNodes = createInitialNodes(flow as unknown as Automation);
+        setNodes(nextNodes);
+        const nextEdges = createInitialEdges(flow as unknown as Automation);
+        setEdges(nextEdges);
+        setSelectedNodeId(null);
+        setSelectedEdgeId(null);
+        setNotice({
+          tone: "success",
+          text: `Fluxo "${flow.name}" importado no editor! Clique em Salvar para persistir.`,
+        });
+      } catch (error) {
+        setNotice({ tone: "error", text: error instanceof Error ? error.message : "Erro ao importar arquivo JSON." });
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = "";
+  }
+
   return (
     <section className="h-[calc(100svh-5.5rem)] min-h-[520px] overflow-hidden rounded-lg border border-[var(--ms-border)] bg-[var(--ms-surface)] shadow-[var(--ms-shadow)] xl:min-h-[640px]">
       <div className="flex h-full min-h-0 flex-col">
@@ -388,6 +441,19 @@ export function FluxoEditorClient({ automation, backHref, accountId, isInstagram
                 </span>
               ) : null}
               <Link className="btn-secondary h-10 px-3" href={backHref} title="Voltar para a lista de fluxos"><ArrowLeft size={16} /> Voltar</Link>
+              <input
+                accept=".json,application/json"
+                className="hidden"
+                onChange={handleImportJsonFile}
+                ref={fileInputRef}
+                type="file"
+              />
+              <button className="btn-secondary h-10 px-3" onClick={handleExportJson} title="Baixar este fluxo como arquivo JSON" type="button">
+                <Download size={16} /> Exportar
+              </button>
+              <button className="btn-secondary h-10 px-3" onClick={() => fileInputRef.current?.click()} title="Importar fluxo a partir de um arquivo JSON" type="button">
+                <Upload size={16} /> Importar
+              </button>
               <button className="btn-secondary h-10 px-3" disabled title="Testar fluxo" type="button"><Workflow size={16} /> Testar</button>
               <button className="btn-primary h-10 px-3" disabled={saving} onClick={saveFlow} title="Salvar alteracoes do fluxo" type="button">
                 {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}

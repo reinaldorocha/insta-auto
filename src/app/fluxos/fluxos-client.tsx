@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, Edit3, Loader2, Pause, Play, Plus, RefreshCw, Trash2, Workflow } from "lucide-react";
+import { Check, Copy, Download, Edit3, Loader2, Pause, Play, Plus, RefreshCw, Trash2, Upload, Workflow } from "lucide-react";
 import { hrefWithAccount } from "@/lib/account-routing";
 import type { Automation, FlowLog } from "@/lib/db/repositories";
+import { downloadFlowJsonFile, exportFlowToPackage, parseAndValidateFlowJson } from "@/lib/flow-json";
 
 type Props = {
   initialAutomations: Automation[];
@@ -19,10 +20,12 @@ const variableExamples = ["{{username}}", "{{first_name}}", "{{name}}", "{{profi
 
 export function FluxosClient({ initialAutomations, initialLogs, activeAccountId = null }: Props) {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [automations, setAutomations] = useState(initialAutomations);
   const [logs] = useState(initialLogs);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
 
@@ -50,6 +53,58 @@ export function FluxosClient({ initialAutomations, initialLogs, activeAccountId 
       setNotice({ tone: "error", text: error instanceof Error ? error.message : "Erro ao criar fluxo." });
       setCreating(false);
     }
+  }
+
+  function handleExportFlow(automation: Automation) {
+    downloadFlowJsonFile(exportFlowToPackage(automation), automation.name);
+    setNotice({ tone: "success", text: `Fluxo "${automation.name}" exportado como JSON.` });
+  }
+
+  function handleImportJsonFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    setNotice(null);
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const content = String(e.target?.result || "");
+        const parsed = parseAndValidateFlowJson(content);
+        if (!parsed.ok) {
+          setNotice({ tone: "error", text: parsed.error });
+          setImporting(false);
+          return;
+        }
+
+        const payload = {
+          account_id: activeAccountId,
+          ...parsed.data,
+        };
+
+        const response = await fetch("/api/automations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const result = (await response.json().catch(() => null)) as { data?: Automation; error?: string } | null;
+        if (!response.ok || !result?.data) {
+          throw new Error(result?.error || "Nao consegui importar o fluxo.");
+        }
+
+        setAutomations((current) => [result.data!, ...current]);
+        setNotice({ tone: "success", text: `Fluxo "${result.data.name}" importado com sucesso!` });
+        router.push(hrefWithAccount(`/fluxos/${result.data.id}/editar`, activeAccountId));
+      } catch (error) {
+        setNotice({ tone: "error", text: error instanceof Error ? error.message : "Erro ao importar fluxo." });
+      } finally {
+        setImporting(false);
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = "";
   }
 
   const stats = useMemo(() => {
@@ -144,10 +199,27 @@ export function FluxosClient({ initialAutomations, initialLogs, activeAccountId 
             <code className="rounded-md border border-[var(--ms-border)] bg-[var(--ms-surface)] px-2 py-1 text-xs" key={variable}>{variable}</code>
           ))}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            accept=".json,application/json"
+            className="hidden"
+            onChange={handleImportJsonFile}
+            ref={fileInputRef}
+            type="file"
+          />
           <button className="btn-secondary" onClick={refreshPage} type="button" disabled={refreshing}>
             {refreshing ? <Loader2 className="animate-spin" size={16} /> : <RefreshCw size={16} />}
             Atualizar
+          </button>
+          <button
+            className="btn-secondary"
+            disabled={importing}
+            onClick={() => fileInputRef.current?.click()}
+            title="Importar fluxo a partir de um arquivo JSON"
+            type="button"
+          >
+            {importing ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />}
+            {importing ? "Importando..." : "Importar JSON"}
           </button>
           <button className="btn-primary" onClick={createFlowFromScratch} type="button" disabled={creating}>
             {creating ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />}
@@ -193,6 +265,10 @@ export function FluxosClient({ initialAutomations, initialLogs, activeAccountId 
                     {busyId === automation.id ? <Loader2 className="animate-spin" size={16} /> : <Copy size={16} />}
                     Duplicar e editar
                   </button>
+                  <button className="btn-secondary h-10" onClick={() => handleExportFlow(automation)} title="Baixar este fluxo como arquivo JSON" type="button">
+                    <Download size={16} />
+                    Exportar
+                  </button>
                   <button className="btn-secondary h-10 text-red-500" disabled={busyId === automation.id} onClick={() => deleteFlow(automation)} type="button">
                     {busyId === automation.id ? <Loader2 className="animate-spin" size={16} /> : <Trash2 size={16} />}
                     Excluir
@@ -207,15 +283,26 @@ export function FluxosClient({ initialAutomations, initialLogs, activeAccountId 
               <p className="mt-1 max-w-sm text-sm text-[var(--ms-muted)]">
                 Crie um fluxo visual do zero com blocos de gatilhos, mensagens, botoes e regras de seguidor.
               </p>
-              <button
-                type="button"
-                className="btn-primary mt-4"
-                onClick={createFlowFromScratch}
-                disabled={creating}
-              >
-                {creating ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />}
-                Criar fluxo do zero
-              </button>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={createFlowFromScratch}
+                  disabled={creating}
+                >
+                  {creating ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />}
+                  Criar fluxo do zero
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={importing}
+                >
+                  {importing ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />}
+                  Importar fluxo existente (JSON)
+                </button>
+              </div>
             </div>
           )}
         </div>
