@@ -6,12 +6,17 @@ declare global {
 }
 
 function createPool() {
+  const ssl =
+    process.env.DATABASE_SSL === "false" || process.env.DATABASE_SSL === "0"
+      ? false
+      : { rejectUnauthorized: false };
+
   return new Pool({
     connectionString: requireEnv("DATABASE_URL"),
     max: Number(process.env.DATABASE_POOL_MAX || 1),
     idleTimeoutMillis: 5_000,
     connectionTimeoutMillis: 5_000,
-    ssl: { rejectUnauthorized: false },
+    ssl,
   });
 }
 
