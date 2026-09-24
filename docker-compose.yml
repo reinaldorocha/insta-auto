@@ -1,4 +1,4 @@
-﻿services:
+services:
   app:
     build:
       context: .
@@ -18,6 +18,9 @@
       - AUTO_MIGRATE=true
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - supabase_default
 
   cron:
     image: alpine:latest
@@ -38,3 +41,10 @@
       "
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    networks:
+      - default
+
+networks:
+  default:
+  supabase_default:
+    external: true
