@@ -5,33 +5,46 @@ declare global {
   var postgresPool: Pool | undefined;
 }
 
-function createPool() {
-  return new Pool({
-    connectionString: requireEnv("DATABASE_URL"),
-    max: Number(process.env.DATABASE_POOL_MAX || 1),
-    idleTimeoutMillis: 5_000,
-    connectionTimeoutMillis: 5_000,
-    ssl: { rejectUnauthorized: false },
-  });
+export function getPool(): Pool {
+  if (!globalThis.postgresPool) {
+    const ssl =
+      process.env.DATABASE_SSL === "false" || process.env.DATABASE_SSL === "0"
+        ? false
+        : { rejectUnauthorized: false };
+
+    globalThis.postgresPool = new Pool({
+      connectionString: requireEnv("DATABASE_URL"),
+      max: Number(process.env.DATABASE_POOL_MAX || 1),
+      idleTimeoutMillis: 5_000,
+      connectionTimeoutMillis: 5_000,
+      ssl,
+    });
+  }
+  return globalThis.postgresPool;
 }
 
-export const pool = globalThis.postgresPool ?? createPool();
-
-if (process.env.NODE_ENV !== "production") {
-  globalThis.postgresPool = pool;
-}
+export const pool = new Proxy({} as Pool, {
+  get(_target, prop, receiver) {
+    const p = getPool();
+    const value = Reflect.get(p, prop, receiver);
+    if (typeof value === "function") {
+      return value.bind(p);
+    }
+    return value;
+  },
+});
 
 export async function query<T extends QueryResultRow = QueryResultRow>(
   text: string,
   params: unknown[] = [],
 ): Promise<QueryResult<T>> {
-  return pool.query<T>(text, params);
+  return getPool().query<T>(text, params);
 }
 
 export async function transaction<T>(
   work: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
-  const client = await pool.connect();
+  const client = await getPool().connect();
 
   try {
     await client.query("begin");
