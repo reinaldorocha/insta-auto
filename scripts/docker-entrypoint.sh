@@ -1,4 +1,4 @@
-﻿#!/bin/sh
+#!/bin/sh
 set -e
 
 # Executa migrations automaticamente se AUTO_MIGRATE=true ou nao definido

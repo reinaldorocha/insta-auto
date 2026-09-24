@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 # ==============================================================================
 # UaiFlow - Script de Instalação e Configuração Automática na VPS com Docker
 # Detecta automaticamente o Supabase existente e configura o ambiente sem esforço.
@@ -221,6 +221,15 @@ START_NOW="${START_NOW:-S}"
 if [[ "$START_NOW" =~ ^[Ss]$ ]]; then
   echo -e "${BLUE}[*] Construindo e iniciando containers (isso pode levar de 1 a 2 minutos)...${NC}"
   docker compose up -d --build
+
+  # Conectar na rede do Nginx Proxy Manager se existir
+  if [ -n "$NPM_CONTAINER" ]; then
+    NPM_NET=$(docker inspect "$NPM_CONTAINER" --format '{{range $k, $v := .NetworkSettings.Networks}}{{println $k}}{{end}}' 2>/dev/null | head -n1)
+    if [ -n "$NPM_NET" ] && [ "$NPM_NET" != "bridge" ]; then
+      docker network connect "$NPM_NET" uaiflow-app 2>/dev/null || true
+    fi
+  fi
+
   echo -e "${GREEN}[✓] Containers iniciados com sucesso!${NC}"
 fi
 
@@ -240,8 +249,8 @@ echo -e "  2. Vá em 'Proxy Hosts' -> 'Add Proxy Host'."
 echo -e "  3. Preencha:"
 echo -e "     - Domain Names:          ${BOLD}${CLEAN_DOMAIN}${NC}"
 echo -e "     - Scheme:                ${BOLD}http${NC}"
-echo -e "     - Forward Hostname / IP: ${BOLD}172.17.0.1${NC}"
-echo -e "     - Forward Port:          ${BOLD}3020${NC}"
+echo -e "     - Forward Hostname / IP: ${BOLD}uaiflow-app${NC} (ou 172.17.0.1 ou IP da VPS)"
+echo -e "     - Forward Port:          ${BOLD}3000${NC} (se usar uaiflow-app) ou ${BOLD}3020${NC} (se usar IP)"
 echo -e "     - Marcar: [x] Block Common Exploits  [x] Websockets Support"
 echo -e "  4. Na aba SSL:"
 echo -e "     - Selecione: 'Request a new SSL Certificate' (Let's Encrypt)"
