@@ -257,6 +257,45 @@ export async function ensureUserWorkspace(input: {
   fullName?: string | null;
   avatarUrl?: string | null;
 }): Promise<WorkspaceContext> {
+  const { rows: existingRows } = await query<{
+    user_id: string;
+    email: string;
+    full_name: string | null;
+    avatar_url: string | null;
+    workspace_id: string;
+    workspace_name: string;
+    workspace_plan: string;
+    role: string;
+  }>(
+    `select p.user_id, p.email, p.full_name, p.avatar_url,
+            w.id as workspace_id, w.name as workspace_name, w.plan as workspace_plan,
+            wm.role
+     from public.profiles p
+     join public.workspace_members wm on wm.user_id = p.user_id
+     join public.workspaces w on w.id = wm.workspace_id
+     where p.user_id = $1
+     limit 1`,
+    [input.userId],
+  );
+
+  if (existingRows.length > 0) {
+    const row = existingRows[0];
+    return {
+      profile: {
+        user_id: row.user_id,
+        email: row.email,
+        full_name: row.full_name,
+        avatar_url: row.avatar_url,
+      },
+      workspace: {
+        id: row.workspace_id,
+        name: row.workspace_name,
+        plan: row.workspace_plan,
+      },
+      role: row.role,
+    };
+  }
+
   const displayName = input.fullName || input.email.split("@")[0] || "UaiFlow";
 
   await query(

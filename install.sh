@@ -171,7 +171,13 @@ ADMIN_SESSION_SECRET=$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urand
 WORKER_SECRET=$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | xxd -p | tr -d '\n')
 WEBHOOK_VERIFY_TOKEN=$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | xxd -p | tr -d '\n')
 
-# 12. Montar DATABASE_URL (conectar direto no container Postgres para evitar exigencia de tenant do Supavisor)
+# 12. Montar DATABASE_URL e SUPABASE_INTERNAL_URL (conectar direto no container para velocidade máxima e isolamento)
+if [ -n "$ENVOY_CONTAINER" ]; then
+  SUPABASE_INTERNAL_URL="http://${ENVOY_CONTAINER}:8000"
+else
+  SUPABASE_INTERNAL_URL=""
+fi
+
 if [ -n "$DB_CONTAINER" ]; then
   DATABASE_URL="postgresql://postgres:${DB_PASS}@${DB_CONTAINER}:5432/postgres"
 else
@@ -191,6 +197,7 @@ NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
 NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON_KEY}
 SUPABASE_URL=${SUPABASE_URL}
 SUPABASE_SERVICE_ROLE_KEY=${SERVICE_KEY}
+SUPABASE_INTERNAL_URL=${SUPABASE_INTERNAL_URL}
 
 # Banco de Dados Postgres (Supabase Self-Hosted)
 DATABASE_URL=${DATABASE_URL}
