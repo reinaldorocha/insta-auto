@@ -5,6 +5,15 @@ declare global {
   var postgresPool: Pool | undefined;
 }
 
+export const DB_SCHEMA = process.env.DATABASE_SCHEMA || "uaiflow";
+
+const UAIFLOW_TABLES_PATTERN = /\bpublic\.(config|instagram_accounts|profile_settings|automations|followups|contacts|events|content_posts|queue|workspaces|workspace_members|profiles|claim_queue_jobs|set_updated_at)\b/g;
+
+export function resolveSql(text: string): string {
+  if (DB_SCHEMA === "public") return text;
+  return text.replace(UAIFLOW_TABLES_PATTERN, (_match, table) => `${DB_SCHEMA}.${table}`);
+}
+
 export function getPool(): Pool {
   if (!globalThis.postgresPool) {
     const ssl =
@@ -38,7 +47,7 @@ export async function query<T extends QueryResultRow = QueryResultRow>(
   text: string,
   params: unknown[] = [],
 ): Promise<QueryResult<T>> {
-  return getPool().query<T>(text, params);
+  return getPool().query<T>(resolveSql(text), params);
 }
 
 export async function transaction<T>(
@@ -48,11 +57,19 @@ export async function transaction<T>(
 
   try {
     await client.query("begin");
+    const originalQuery = client.query.bind(client);
+    client.query = (async (sqlOrConfig: unknown, values?: unknown[]) => {
+      if (typeof sqlOrConfig === "string") {
+        return originalQuery(resolveSql(sqlOrConfig), values);
+      }
+      return originalQuery(sqlOrConfig as never, values as never);
+    }) as typeof client.query;
+
     const result = await work(client);
-    await client.query("commit");
+    await originalQuery("commit");
     return result;
   } catch (error) {
-    await client.query("rollback");
+    await client.query("rollback").catch(() => undefined);
     throw error;
   } finally {
     client.release();
