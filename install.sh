@@ -54,10 +54,18 @@ if [ -z "$DETECTED_DB_PASS" ] && [ -n "$AUTH_CONTAINER" ]; then
   DETECTED_DB_PASS=$(docker inspect "$AUTH_CONTAINER" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep -E '^GOTRUE_DB_DATABASE_URL=' | sed -E 's/.*postgres:([^@]+)@.*/\1/' | head -n1 | tr -d '"')
 fi
 
+# Detectar porta e host do Postgres diretamente do PostgREST se existir
+DETECTED_DB_PORT=""
+DETECTED_DB_HOST=""
+if [ -n "$REST_CONTAINER" ]; then
+  DETECTED_DB_PORT=$(docker inspect "$REST_CONTAINER" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep -E '^PGRST_DB_URI=' | sed -E 's/.*@[^:]+:([0-9]+)\/.*/\1/' | head -n1 | tr -d '"')
+  DETECTED_DB_HOST=$(docker inspect "$REST_CONTAINER" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep -E '^PGRST_DB_URI=' | sed -E 's/.*@([^:]+):.*/\1/' | head -n1 | tr -d '"')
+fi
+
 # Detectar porta do pooler / postgres exposta
 POOLER_PORT=$(docker ps --format '{{.Ports}}' | grep -oE '[0-9]+->5432/tcp' | cut -d- -f1 | head -n1)
 if [ -z "$POOLER_PORT" ]; then
-  POOLER_PORT="54322"
+  POOLER_PORT="${DETECTED_DB_PORT:-54322}"
 fi
 
 # 4. Extrair ANON_KEY e SERVICE_ROLE_KEY automaticamente
@@ -172,8 +180,10 @@ WORKER_SECRET=$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | xx
 WEBHOOK_VERIFY_TOKEN=$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | xxd -p | tr -d '\n')
 
 # 12. Montar DATABASE_URL (conectar direto no container Postgres para evitar exigencia de tenant do Supavisor)
-if [ -n "$DB_CONTAINER" ]; then
-  DATABASE_URL="postgresql://postgres:${DB_PASS}@${DB_CONTAINER}:5432/postgres"
+TARGET_DB_HOST="${DETECTED_DB_HOST:-$DB_CONTAINER}"
+TARGET_DB_PORT="${DETECTED_DB_PORT:-5432}"
+if [ -n "$TARGET_DB_HOST" ]; then
+  DATABASE_URL="postgresql://postgres:${DB_PASS}@${TARGET_DB_HOST}:${TARGET_DB_PORT}/postgres"
 else
   DATABASE_URL="postgresql://postgres:${DB_PASS}@host.docker.internal:${POOLER_PORT}/postgres"
 fi
@@ -247,6 +257,20 @@ if [[ "$START_NOW" =~ ^[Ss]$ ]]; then
   echo -e "${BLUE}[*] Aplicando migrations no Supabase Postgres...${NC}"
   docker compose exec app node scripts/migrate.cjs || true
   docker compose restart app
+
+  # Habilitar schema uaiflow no Supabase Studio/PostgREST automaticamente
+  if [ -n "$REST_CONTAINER" ]; then
+    SUPABASE_DIR=$(docker inspect "$REST_CONTAINER" --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' 2>/dev/null)
+    if [ -n "$SUPABASE_DIR" ] && [ -f "$SUPABASE_DIR/.env" ]; then
+      if ! grep -q "uaiflow" "$SUPABASE_DIR/.env"; then
+        echo -e "${BLUE}[*] Habilitando schema uaiflow no Supabase Studio...${NC}"
+        sed -i -E 's/^(PGRST_DB_SCHEMAS=.*)/\1,uaiflow/' "$SUPABASE_DIR/.env"
+        docker restart "$REST_CONTAINER" 2>/dev/null || true
+        META_CONTAINER=$(docker ps -q -f name=meta | head -n1)
+        [ -n "$META_CONTAINER" ] && docker restart "$META_CONTAINER" 2>/dev/null || true
+      fi
+    fi
+  fi
 
   echo -e "${GREEN}[✓] Containers iniciados com sucesso!${NC}"
 fi
