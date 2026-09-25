@@ -20,8 +20,41 @@ alter table if exists public.events set schema uaiflow;
 alter table if exists public.content_posts set schema uaiflow;
 alter table if exists public.queue set schema uaiflow;
 
--- 3. Mover a funcao set_updated_at para uaiflow
-alter function if exists public.set_updated_at() set schema uaiflow;
+-- 3. Criar a funcao set_updated_at no schema uaiflow e atualizar triggers
+create or replace function uaiflow.set_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists set_profiles_updated_at on uaiflow.profiles;
+create trigger set_profiles_updated_at before update on uaiflow.profiles for each row execute function uaiflow.set_updated_at();
+
+drop trigger if exists set_workspaces_updated_at on uaiflow.workspaces;
+create trigger set_workspaces_updated_at before update on uaiflow.workspaces for each row execute function uaiflow.set_updated_at();
+
+drop trigger if exists set_profile_settings_updated_at on uaiflow.profile_settings;
+create trigger set_profile_settings_updated_at before update on uaiflow.profile_settings for each row execute function uaiflow.set_updated_at();
+
+drop trigger if exists set_instagram_accounts_updated_at on uaiflow.instagram_accounts;
+create trigger set_instagram_accounts_updated_at before update on uaiflow.instagram_accounts for each row execute function uaiflow.set_updated_at();
+
+drop trigger if exists set_config_updated_at on uaiflow.config;
+create trigger set_config_updated_at before update on uaiflow.config for each row execute function uaiflow.set_updated_at();
+
+drop trigger if exists set_automations_updated_at on uaiflow.automations;
+create trigger set_automations_updated_at before update on uaiflow.automations for each row execute function uaiflow.set_updated_at();
+
+drop trigger if exists set_contacts_updated_at on uaiflow.contacts;
+create trigger set_contacts_updated_at before update on uaiflow.contacts for each row execute function uaiflow.set_updated_at();
+
+drop trigger if exists set_content_posts_updated_at on uaiflow.content_posts;
+create trigger set_content_posts_updated_at before update on uaiflow.content_posts for each row execute function uaiflow.set_updated_at();
+
+drop trigger if exists set_queue_updated_at on uaiflow.queue;
+create trigger set_queue_updated_at before update on uaiflow.queue for each row execute function uaiflow.set_updated_at();
 
 -- 4. Criar a funcao claim_queue_jobs dentro do schema uaiflow
 create or replace function uaiflow.claim_queue_jobs(job_limit integer default 10)
@@ -55,12 +88,20 @@ begin
 end;
 $$ language plpgsql;
 
--- 5. Conceder todas as permissoes para o Postgres, Supabase Auth e Studio
-grant usage on schema uaiflow to postgres, anon, authenticated, service_role;
-grant all privileges on all tables in schema uaiflow to postgres, anon, authenticated, service_role;
-grant all privileges on all sequences in schema uaiflow to postgres, anon, authenticated, service_role;
-grant all privileges on all routines in schema uaiflow to postgres, anon, authenticated, service_role;
-
-alter default privileges in schema uaiflow grant all on tables to postgres, anon, authenticated, service_role;
-alter default privileges in schema uaiflow grant all on sequences to postgres, anon, authenticated, service_role;
-alter default privileges in schema uaiflow grant all on routines to postgres, anon, authenticated, service_role;
+-- 5. Conceder todas as permissoes de forma segura para os papeis existentes
+do $$
+declare
+  r text;
+begin
+  for r in select unnest(array['postgres', 'anon', 'authenticated', 'service_role']) loop
+    if exists (select 1 from pg_roles where rolname = r) then
+      execute format('grant usage on schema uaiflow to %I', r);
+      execute format('grant all privileges on all tables in schema uaiflow to %I', r);
+      execute format('grant all privileges on all sequences in schema uaiflow to %I', r);
+      execute format('grant all privileges on all routines in schema uaiflow to %I', r);
+      execute format('alter default privileges in schema uaiflow grant all on tables to %I', r);
+      execute format('alter default privileges in schema uaiflow grant all on sequences to %I', r);
+      execute format('alter default privileges in schema uaiflow grant all on routines to %I', r);
+    end if;
+  end loop;
+end $$;
