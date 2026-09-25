@@ -66,12 +66,22 @@ function createPool() {
 
 async function ensureMigrationsTable(client) {
   await client.query(`
+    create extension if not exists pgcrypto;
+    create schema if not exists auth;
+    create table if not exists auth.users (
+      id uuid primary key default gen_random_uuid(),
+      email text
+    );
+    create or replace function auth.uid() returns uuid as $$
+      select null::uuid;
+    $$ language sql stable;
+
     create table if not exists public.schema_migrations (
       version text primary key,
       name text not null unique,
       checksum text not null,
       applied_at timestamptz not null default now()
-    )
+    );
   `);
 }
 
