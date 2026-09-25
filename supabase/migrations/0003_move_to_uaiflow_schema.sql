@@ -6,19 +6,18 @@
 -- 1. Criar o schema dedicado uaiflow
 create schema if not exists uaiflow;
 
--- 2. Mover as tabelas do UaiFlow de public para uaiflow (preserva 100% dos dados)
-alter table if exists public.profiles set schema uaiflow;
-alter table if exists public.workspaces set schema uaiflow;
-alter table if exists public.workspace_members set schema uaiflow;
-alter table if exists public.config set schema uaiflow;
-alter table if exists public.instagram_accounts set schema uaiflow;
-alter table if exists public.automations set schema uaiflow;
-alter table if exists public.followups set schema uaiflow;
-alter table if exists public.contacts set schema uaiflow;
-alter table if exists public.profile_settings set schema uaiflow;
-alter table if exists public.events set schema uaiflow;
-alter table if exists public.content_posts set schema uaiflow;
-alter table if exists public.queue set schema uaiflow;
+-- 2. Mover tabelas de public para uaiflow apenas se nao existirem em uaiflow
+do $$
+declare
+  tbl text;
+begin
+  for tbl in select unnest(array['profiles', 'workspaces', 'workspace_members', 'config', 'instagram_accounts', 'automations', 'followups', 'contacts', 'profile_settings', 'events', 'content_posts', 'queue']) loop
+    if exists (select 1 from information_schema.tables where table_schema = 'public' and table_name = tbl)
+       and not exists (select 1 from information_schema.tables where table_schema = 'uaiflow' and table_name = tbl) then
+      execute format('alter table public.%I set schema uaiflow', tbl);
+    end if;
+  end loop;
+end $$;
 
 -- 3. Criar a funcao set_updated_at no schema uaiflow e atualizar triggers
 create or replace function uaiflow.set_updated_at()
