@@ -65,26 +65,9 @@ function createPool() {
 }
 
 async function ensureMigrationsTable(client) {
-  try {
-    await client.query(`
-      create extension if not exists pgcrypto;
-      create schema if not exists auth;
-      create table if not exists auth.users (
-        id uuid primary key default gen_random_uuid(),
-        email text,
-        raw_user_meta_data jsonb default '{}'::jsonb
-      );
-      alter table auth.users add column if not exists raw_user_meta_data jsonb default '{}'::jsonb;
-      create or replace function auth.uid() returns uuid as $$
-        select null::uuid;
-      $$ language sql stable;
-    `);
-  } catch {
-    // No Supabase oficial, o schema auth e gerenciado por supabase_admin e ja contem users e uid()
-  }
-
   await client.query(`
-    create table if not exists public.schema_migrations (
+    create schema if not exists uaiflow;
+    create table if not exists uaiflow.schema_migrations (
       version text primary key,
       name text not null unique,
       checksum text not null,

@@ -10,6 +10,6 @@ exception when others then
   null;
 end $$;
 
-alter table if exists public.profiles drop constraint if exists profiles_user_id_fkey;
-alter table if exists public.workspaces drop constraint if exists workspaces_owner_user_id_fkey;
-alter table if exists public.workspace_members drop constraint if exists workspace_members_user_id_fkey;
+alter table if exists uaiflow.profiles drop constraint if exists profiles_user_id_fkey;
+alter table if exists uaiflow.workspaces drop constraint if exists workspaces_owner_user_id_fkey;
+alter table if exists uaiflow.workspace_members drop constraint if exists workspace_members_user_id_fkey;

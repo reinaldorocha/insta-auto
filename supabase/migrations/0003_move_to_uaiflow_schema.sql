@@ -93,7 +93,7 @@ do $$
 declare
   r text;
 begin
-  for r in select unnest(array['postgres', 'anon', 'authenticated', 'service_role']) loop
+  for r in select unnest(array['postgres', 'anon', 'authenticated', 'service_role', 'authenticator', 'supabase_admin', 'dashboard_user']) loop
     if exists (select 1 from pg_roles where rolname = r) then
       execute format('grant usage on schema uaiflow to %I', r);
       execute format('grant all privileges on all tables in schema uaiflow to %I', r);
@@ -104,4 +104,5 @@ begin
       execute format('alter default privileges in schema uaiflow grant all on routines to %I', r);
     end if;
   end loop;
+  perform pg_notify('pgrst', 'reload schema');
 end $$;

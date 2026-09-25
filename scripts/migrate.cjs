@@ -10,7 +10,7 @@ async function main() {
   try {
     await client.query("select pg_advisory_lock($1)", [MIGRATION_LOCK_ID]);
     await ensureMigrationsTable(client);
-    const { rows } = await client.query("select version, name, checksum from public.schema_migrations order by version");
+    const { rows } = await client.query("select version, name, checksum from uaiflow.schema_migrations order by version");
     const applied = new Map(rows.map((row) => [row.version, row]));
     let count = 0;
 
@@ -31,7 +31,7 @@ async function main() {
         await client.query("set local statement_timeout = '5min'");
         await client.query(migration.sql);
         await client.query(
-          "insert into public.schema_migrations (version, name, checksum) values ($1, $2, $3)",
+          "insert into uaiflow.schema_migrations (version, name, checksum) values ($1, $2, $3)",
           [migration.version, migration.name, migration.checksum],
         );
         await client.query("commit");
