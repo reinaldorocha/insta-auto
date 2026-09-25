@@ -16,6 +16,9 @@ services:
       - PORT=3000
       - HOSTNAME=0.0.0.0
       - AUTO_MIGRATE=true
+    volumes:
+      - ./supabase:/app/supabase:ro
+      - ./scripts:/app/scripts:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
