@@ -15,6 +15,7 @@ export type InstagramProfile = {
 };
 
 export async function exchangeCodeForLongToken(code: string, redirectUri: string) {
+  const cleanCode = code.replace(/#_$/, "").replace(/#.*$/, "").trim();
   const shortTokenResponse = await fetch(IG_OAUTH_TOKEN_URL, {
     method: "POST",
     body: new URLSearchParams({
@@ -22,18 +23,28 @@ export async function exchangeCodeForLongToken(code: string, redirectUri: string
       client_secret: requireEnv("INSTAGRAM_APP_SECRET"),
       grant_type: "authorization_code",
       redirect_uri: redirectUri,
-      code,
+      code: cleanCode,
     }),
   });
 
-  const shortToken = await readGraphResponse<{ access_token: string; user_id: number }>(shortTokenResponse);
+  const shortTokenPayload = (await shortTokenResponse.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!shortTokenResponse.ok || shortTokenPayload.error || shortTokenPayload.error_message) {
+    const errorMsg =
+      (shortTokenPayload.error_message as string) ||
+      ((shortTokenPayload.error as { message?: string })?.message) ||
+      JSON.stringify(shortTokenPayload) ||
+      `${shortTokenResponse.status} ${shortTokenResponse.statusText}`;
+    console.error("[oauth] Falha ao obter shortToken:", shortTokenResponse.status, errorMsg);
+    throw new Error(`Instagram OAuth Token (${shortTokenResponse.status}): ${errorMsg}`);
+  }
+
+  const shortToken = shortTokenPayload as { access_token: string; user_id: number };
   const longTokenUrl = new URL("https://graph.instagram.com/access_token");
   longTokenUrl.searchParams.set("grant_type", "ig_exchange_token");
   longTokenUrl.searchParams.set("client_secret", requireEnv("INSTAGRAM_APP_SECRET"));
   longTokenUrl.searchParams.set("access_token", shortToken.access_token);
 
   const longTokenResponse = await fetch(longTokenUrl);
-
   return readGraphResponse<{ access_token: string; token_type: string; expires_in: number }>(longTokenResponse);
 }
 
@@ -470,10 +481,17 @@ async function graphFetch<T>(url: URL, accessToken: string, init: RequestInit = 
 }
 
 async function readGraphResponse<T>(response: Response): Promise<T> {
-  const payload = (await response.json().catch(() => ({}))) as GraphResponse<T>;
+  const payload = (await response.json().catch(() => ({}))) as GraphResponse<T> & {
+    error_message?: string;
+    message?: string;
+  };
 
-  if (!response.ok || payload.error) {
-    const details = payload.error?.message || `${response.status} ${response.statusText}`;
+  if (!response.ok || payload.error || payload.error_message) {
+    const details =
+      payload.error_message ||
+      payload.error?.message ||
+      payload.message ||
+      `${response.status} ${response.statusText}`;
     throw new Error(`Instagram Graph ${META_API_VERSION}: ${details}`);
   }
 
