@@ -373,7 +373,8 @@ async function processMessage(entry: WebhookEntry, event: WebhookMessageEvent) {
     return 1;
   }
 
-  const matches = await findMatchingAutomations({ accountId: account.id, trigger, text });
+  const storyId = (event.message?.reply_to?.story as { id?: string } | undefined)?.id ?? null;
+  const matches = await findMatchingAutomations({ accountId: account.id, trigger, text, postId: storyId });
   for (const automation of matches) {
     if (hasExecutableFlow(automation)) {
       await executeAutomationFlow({ automation, eventId, contactId, instagramUserId: senderId, trigger, startNodeId: "trigger" });

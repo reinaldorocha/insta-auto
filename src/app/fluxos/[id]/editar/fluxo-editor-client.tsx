@@ -1050,7 +1050,7 @@ function TriggerPostPicker({
   return (
     <div className="grid gap-3">
       <SegmentedControl<"all" | "specific">
-        label="Post/Reel"
+        label="Post / Reel / Story"
         value={scope}
         options={[{ label: "Todos", value: "all" }, { label: "Especificos", value: "specific" }]}
         onChange={handleScopeChange}
@@ -1061,22 +1061,23 @@ function TriggerPostPicker({
           {selectedPostIds.length ? (
             <p className="status-pill status-pill-green w-fit">{selectedPostIds.length} selecionado(s)</p>
           ) : (
-            <p className="text-xs font-semibold text-[var(--ms-muted)]">Nenhum post selecionado ainda. Clique em um ou mais posts abaixo ou cole o ID:</p>
+            <p className="text-xs font-semibold text-[var(--ms-muted)]">Nenhum item selecionado ainda. Clique em um ou mais posts/stories abaixo ou cole o ID:</p>
           )}
-          {mediaStatus === "idle" ? <p className="text-sm text-[var(--ms-muted)]">Conecte o Instagram para listar posts e reels.</p> : null}
+          {mediaStatus === "idle" ? <p className="text-sm text-[var(--ms-muted)]">Conecte o Instagram para listar posts, reels e stories.</p> : null}
           {mediaStatus === "loading" ? (
             <div className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--ms-muted)]" aria-live="polite">
-              <Loader2 className="animate-spin" size={15} /> Carregando posts e reels...
+              <Loader2 className="animate-spin" size={15} /> Carregando posts, reels e stories...
             </div>
           ) : null}
           {mediaStatus === "error" ? <p className="text-sm text-red-500">{mediaError}</p> : null}
-          {mediaStatus === "ready" && !media.length ? <p className="text-sm text-[var(--ms-muted)]">Nenhum post ou reel retornado pela API.</p> : null}
+          {mediaStatus === "ready" && !media.length ? <p className="text-sm text-[var(--ms-muted)]">Nenhum post, reel ou story ativo retornado pela API.</p> : null}
 
           {mediaStatus === "ready" && media.length ? (
             <div className="grid max-h-72 gap-2 overflow-y-auto pr-1">
               {media.map((item) => {
                 const imageUrl = item.thumbnail_url || item.media_url;
                 const selected = selectedPostSet.has(item.id);
+                const isStory = item.media_type === "STORIES";
                 return (
                   <button
                     className={selected ? "rounded-lg border border-emerald-500 bg-emerald-500/10 p-2 text-left" : "rounded-lg border border-[var(--ms-border)] bg-[var(--ms-surface)] p-2 text-left hover:border-[var(--ms-border-strong)]"}
@@ -1087,23 +1088,23 @@ function TriggerPostPicker({
                     <div className="flex gap-3">
                       {imageUrl ? (
                         <img
-                          alt="Preview do post"
+                          alt="Preview da midia"
                           className="size-12 shrink-0 rounded-lg object-cover"
                           src={imageUrl}
                           onError={(event) => {
                             event.currentTarget.style.display = "none";
                           }}
                         />
-                      ) : <div className="grid size-12 shrink-0 place-items-center rounded-lg bg-[var(--ms-surface-soft)] text-xs text-[var(--ms-muted)]">Midia</div>}
+                      ) : <div className="grid size-12 shrink-0 place-items-center rounded-lg bg-[var(--ms-surface-soft)] text-xs text-[var(--ms-muted)]">{isStory ? "Story" : "Midia"}</div>}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2 text-xs font-bold">
-                          <span className="text-emerald-700 dark:text-emerald-300">{item.media_type || "MIDIA"}</span>
+                          <span className={isStory ? "text-purple-600 dark:text-purple-400 font-extrabold" : "text-emerald-700 dark:text-emerald-300"}>{isStory ? "STORY ATIVO" : (item.media_type || "MIDIA")}</span>
                           <span className={selected ? "inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300" : "text-[var(--ms-muted)]"}>
                             {selected ? <Check size={13} /> : null}
                             {selected ? "Selecionado" : "Selecionar"}
                           </span>
                         </div>
-                        <p className="mt-1 line-clamp-2 text-sm text-[var(--ms-muted)]">{item.caption || "Sem legenda"}</p>
+                        <p className="mt-1 line-clamp-2 text-sm text-[var(--ms-muted)]">{item.caption || (isStory ? "Story publicado nas ultimas 24h" : "Sem legenda")}</p>
                         <code className="mt-1 block truncate text-[11px] text-[var(--ms-muted)]">{item.id}</code>
                       </div>
                     </div>

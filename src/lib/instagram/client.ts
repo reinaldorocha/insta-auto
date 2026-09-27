@@ -166,10 +166,23 @@ export async function getInstagramSubscribedApps(instagramUserId: string, access
   return graphFetch<{ data?: Array<Record<string, unknown>> }>(url, accessToken);
 }
 export async function listInstagramMedia(instagramUserId: string, accessToken: string) {
-  const url = new URL(`${GRAPH_BASE_URL}/${instagramUserId}/media`);
-  url.searchParams.set("fields", "id,media_type,media_url,thumbnail_url,caption,permalink");
+  const mediaUrl = new URL(`${GRAPH_BASE_URL}/${instagramUserId}/media`);
+  mediaUrl.searchParams.set("fields", "id,media_type,media_url,thumbnail_url,caption,permalink,timestamp");
 
-  return graphFetch<{ data: unknown[] }>(url, accessToken);
+  const storiesUrl = new URL(`${GRAPH_BASE_URL}/${instagramUserId}/stories`);
+  storiesUrl.searchParams.set("fields", "id,media_type,media_url,caption,permalink,timestamp");
+
+  const [mediaRes, storiesRes] = await Promise.allSettled([
+    graphFetch<{ data?: unknown[] }>(mediaUrl, accessToken),
+    graphFetch<{ data?: unknown[] }>(storiesUrl, accessToken),
+  ]);
+
+  const mediaItems = mediaRes.status === "fulfilled" && Array.isArray(mediaRes.value.data) ? mediaRes.value.data : [];
+  const storyItems = storiesRes.status === "fulfilled" && Array.isArray(storiesRes.value.data)
+    ? storiesRes.value.data.map((item) => ({ ...(item as Record<string, unknown>), media_type: "STORIES" }))
+    : [];
+
+  return { data: [...storyItems, ...mediaItems] };
 }
 
 export type MessengerProfileMenuItem = {
