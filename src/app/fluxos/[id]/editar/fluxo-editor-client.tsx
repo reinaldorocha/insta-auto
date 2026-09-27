@@ -1015,7 +1015,15 @@ function TriggerPostPicker({
 }) {
   const selectedPostIds = splitPostIds(selectedPostId);
   const selectedPostSet = new Set(selectedPostIds);
-  const scope = selectedPostIds.length ? "specific" : "all";
+  const [isSpecificMode, setIsSpecificMode] = useState<boolean>(() => selectedPostIds.length > 0);
+
+  useEffect(() => {
+    if (selectedPostIds.length > 0) {
+      setIsSpecificMode(true);
+    }
+  }, [selectedPostId]);
+
+  const scope: "all" | "specific" = isSpecificMode || selectedPostIds.length > 0 ? "specific" : "all";
   const missingPostIds = mediaStatus === "ready" ? selectedPostIds.filter((postId) => !media.some((item) => item.id === postId)) : [];
 
   function updateSelectedPostIds(postIds: string[]) {
@@ -1030,18 +1038,31 @@ function TriggerPostPicker({
     );
   }
 
+  function handleScopeChange(value: "all" | "specific") {
+    if (value === "all") {
+      setIsSpecificMode(false);
+      onSelectPost("");
+    } else {
+      setIsSpecificMode(true);
+    }
+  }
+
   return (
     <div className="grid gap-3">
       <SegmentedControl<"all" | "specific">
         label="Post/Reel"
         value={scope}
         options={[{ label: "Todos", value: "all" }, { label: "Especificos", value: "specific" }]}
-        onChange={(value) => onSelectPost(value === "all" ? "" : selectedPostId)}
+        onChange={handleScopeChange}
       />
 
       {scope === "specific" ? (
         <div className="grid gap-3 rounded-lg border border-[var(--ms-border)] bg-[var(--ms-surface-soft)] p-3">
-          {selectedPostIds.length ? <p className="status-pill status-pill-green w-fit">{selectedPostIds.length} selecionado(s)</p> : null}
+          {selectedPostIds.length ? (
+            <p className="status-pill status-pill-green w-fit">{selectedPostIds.length} selecionado(s)</p>
+          ) : (
+            <p className="text-xs font-semibold text-[var(--ms-muted)]">Nenhum post selecionado ainda. Clique em um ou mais posts abaixo ou cole o ID:</p>
+          )}
           {mediaStatus === "idle" ? <p className="text-sm text-[var(--ms-muted)]">Conecte o Instagram para listar posts e reels.</p> : null}
           {mediaStatus === "loading" ? (
             <div className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--ms-muted)]" aria-live="polite">
