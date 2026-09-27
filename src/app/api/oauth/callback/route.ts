@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAppBaseUrl } from "@/lib/env";
+import { getAppBaseUrl, getInstagramRedirectUri } from "@/lib/env";
 import { saveInstagramConfig } from "@/lib/db/repositories";
 import {
   exchangeCodeForLongToken,
@@ -24,7 +24,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const redirectUri = process.env.INSTAGRAM_REDIRECT_URI || `${appBaseUrl}/api/oauth/callback`;
+    const redirectUri = getInstagramRedirectUri(request);
+    console.log("[oauth/callback] Trocando code por token com redirect_uri:", redirectUri);
     const token = await exchangeCodeForLongToken(code, redirectUri);
     const profile = await getInstagramProfile(token.access_token);
     const expiresAt = new Date(Date.now() + token.expires_in * 1000);
