@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
@@ -16,6 +16,7 @@ export function PendingLink({ children, pendingLabel = "Aguarde...", disabled = 
 
   return (
     <Link
+      prefetch={props.prefetch ?? false}
       className={className}
       aria-disabled={disabled || pending}
       onClick={(event) => {

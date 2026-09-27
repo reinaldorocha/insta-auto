@@ -32,7 +32,7 @@ export function getAppBaseUrl(requestUrl?: string): string {
 
 export function getInstagramRedirectUri(request?: Request): string {
   if (process.env.INSTAGRAM_REDIRECT_URI?.trim()) {
-    let uri = process.env.INSTAGRAM_REDIRECT_URI.trim().replace(/\/$/, "");
+    let uri = process.env.INSTAGRAM_REDIRECT_URI.trim();
     if (!/^https?:\/\//i.test(uri)) {
       uri = `https://${uri}`;
     }

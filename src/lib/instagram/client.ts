@@ -16,36 +16,93 @@ export type InstagramProfile = {
 
 export async function exchangeCodeForLongToken(code: string, redirectUri: string) {
   const cleanCode = code.replace(/#_$/, "").replace(/#.*$/, "").trim();
+  const clientId = requireEnv("INSTAGRAM_APP_ID");
+  const clientSecret = requireEnv("INSTAGRAM_APP_SECRET");
+
+  console.log(`[oauth] Requisitando shortToken com client_id=${clientId}, redirect_uri=${redirectUri}, code_len=${cleanCode.length}`);
+
   const shortTokenResponse = await fetch(IG_OAUTH_TOKEN_URL, {
     method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
     body: new URLSearchParams({
-      client_id: requireEnv("INSTAGRAM_APP_ID"),
-      client_secret: requireEnv("INSTAGRAM_APP_SECRET"),
+      client_id: clientId,
+      client_secret: clientSecret,
       grant_type: "authorization_code",
       redirect_uri: redirectUri,
       code: cleanCode,
     }),
   });
 
-  const shortTokenPayload = (await shortTokenResponse.json().catch(() => ({}))) as Record<string, unknown>;
+  const rawShortToken = await shortTokenResponse.text();
+  let shortTokenPayload: Record<string, unknown> = {};
+  try {
+    shortTokenPayload = JSON.parse(rawShortToken);
+  } catch {
+    // raw text
+  }
+
   if (!shortTokenResponse.ok || shortTokenPayload.error || shortTokenPayload.error_message) {
     const errorMsg =
       (shortTokenPayload.error_message as string) ||
       ((shortTokenPayload.error as { message?: string })?.message) ||
-      JSON.stringify(shortTokenPayload) ||
+      (shortTokenPayload.error_description as string) ||
+      rawShortToken ||
       `${shortTokenResponse.status} ${shortTokenResponse.statusText}`;
     console.error("[oauth] Falha ao obter shortToken:", shortTokenResponse.status, errorMsg);
     throw new Error(`Instagram OAuth Token (${shortTokenResponse.status}): ${errorMsg}`);
   }
 
   const shortToken = shortTokenPayload as { access_token: string; user_id: number };
+  console.log(`[oauth] shortToken obtido com sucesso para user_id=${shortToken.user_id}. Tentando estender para token de 60 dias...`);
+
+  // Tentar trocar por token de longa duracao (60 dias) via GET e POST
   const longTokenUrl = new URL("https://graph.instagram.com/access_token");
   longTokenUrl.searchParams.set("grant_type", "ig_exchange_token");
-  longTokenUrl.searchParams.set("client_secret", requireEnv("INSTAGRAM_APP_SECRET"));
+  longTokenUrl.searchParams.set("client_secret", clientSecret);
   longTokenUrl.searchParams.set("access_token", shortToken.access_token);
 
-  const longTokenResponse = await fetch(longTokenUrl);
-  return readGraphResponse<{ access_token: string; token_type: string; expires_in: number }>(longTokenResponse);
+  try {
+    // 1. Tentar GET (padrao documentado pela Meta)
+    const longTokenResponse = await fetch(longTokenUrl);
+    if (longTokenResponse.ok) {
+      const longToken = await readGraphResponse<{ access_token: string; token_type: string; expires_in: number }>(longTokenResponse);
+      console.log(`[oauth] Long-lived token obtido com sucesso! Validade: ${Math.round(longToken.expires_in / 86400)} dias.`);
+      return longToken;
+    }
+
+    // 2. Se GET falhou, tentar POST
+    console.warn(`[oauth] GET ig_exchange_token retornou ${longTokenResponse.status}. Tentando POST...`);
+    const postResponse = await fetch("https://graph.instagram.com/access_token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "ig_exchange_token",
+        client_secret: clientSecret,
+        access_token: shortToken.access_token,
+      }),
+    });
+
+    if (postResponse.ok) {
+      const longToken = await readGraphResponse<{ access_token: string; token_type: string; expires_in: number }>(postResponse);
+      console.log(`[oauth] Long-lived token obtido via POST com sucesso! Validade: ${Math.round(longToken.expires_in / 86400)} dias.`);
+      return longToken;
+    }
+
+    const getErr = await longTokenResponse.text().catch(() => "");
+    const postErr = await postResponse.text().catch(() => "");
+    console.warn("[oauth] Falha ao estender token para 60 dias (GET:", getErr, "POST:", postErr, "). Usando shortToken temporario (1h) para nao impedir a conexao.");
+  } catch (exchangeErr) {
+    console.warn("[oauth] Erro inesperado ao tentar estender token:", exchangeErr instanceof Error ? exchangeErr.message : exchangeErr);
+  }
+
+  // Fallback seguro: usa o shortToken para permitir que a conta seja vinculada
+  return {
+    access_token: shortToken.access_token,
+    token_type: "bearer",
+    expires_in: 3600,
+  };
 }
 
 export async function refreshLongLivedToken(accessToken: string) {
@@ -481,18 +538,26 @@ async function graphFetch<T>(url: URL, accessToken: string, init: RequestInit = 
 }
 
 async function readGraphResponse<T>(response: Response): Promise<T> {
-  const payload = (await response.json().catch(() => ({}))) as GraphResponse<T> & {
-    error_message?: string;
-    message?: string;
-  };
+  const rawText = await response.text();
+  let payload: Record<string, unknown> = {};
+  try {
+    payload = JSON.parse(rawText);
+  } catch {
+    // not JSON
+  }
+
+  const errObj = payload.error as Record<string, unknown> | string | undefined;
+  const errMsg =
+    (typeof errObj === "string" ? errObj : (errObj?.message as string)) ||
+    (payload.error_description as string) ||
+    (payload.error_message as string) ||
+    (payload.message as string) ||
+    rawText ||
+    `${response.status} ${response.statusText}`;
 
   if (!response.ok || payload.error || payload.error_message) {
-    const details =
-      payload.error_message ||
-      payload.error?.message ||
-      payload.message ||
-      `${response.status} ${response.statusText}`;
-    throw new Error(`Instagram Graph ${META_API_VERSION}: ${details}`);
+    console.error(`[oauth] Instagram Graph Error (${response.status}):`, errMsg);
+    throw new Error(`Instagram Graph ${META_API_VERSION}: ${errMsg}`);
   }
 
   return payload as T;

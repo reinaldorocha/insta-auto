@@ -38,10 +38,10 @@ export default async function PerfisPage({ searchParams }: Props) {
         title="Instagram conectado"
         description="Configure cada perfil individualmente ou copie configuracoes de outro Instagram conectado."
         action={
-          <Link className="btn-primary" href={`/api/oauth/login?next=${next}`}>
+          <a className="btn-primary" href={`/api/oauth/login?next=${next}`}>
             {connected ? <RefreshCcw size={16} /> : <Camera size={16} />}
             Adicionar via Meta + Login
-          </Link>
+          </a>
         }
       />
 

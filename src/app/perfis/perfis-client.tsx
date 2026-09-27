@@ -322,7 +322,7 @@ export function PerfisClient({ accounts, automations, config, settings, activeAc
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link className="btn-secondary" href={`/api/oauth/login?next=${encodeURIComponent(hrefWithAccount("/perfis", activeAccountId))}`}><RefreshCcw size={16} /> Atualizar permissoes</Link>
+            <a className="btn-secondary" href={`/api/oauth/login?next=${encodeURIComponent(hrefWithAccount("/perfis", activeAccountId))}`}><RefreshCcw size={16} /> Atualizar permissoes</a>
             <label className="flex h-10 items-center gap-2 rounded-lg border border-[var(--ms-border)] bg-[var(--ms-surface-soft)] px-3 text-sm font-semibold">
               <input checked={draft.channel_active} onChange={(event) => setDraft((current) => ({ ...current, channel_active: event.target.checked }))} type="checkbox" />
               Canal ativo
@@ -337,7 +337,7 @@ export function PerfisClient({ accounts, automations, config, settings, activeAc
             <h2 className="mt-1 text-xl font-bold">Gerencie suas contas de Instagram</h2>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link className="btn-secondary" href={`/api/oauth/login?next=${encodeURIComponent(hrefWithAccount("/perfis", activeAccountId))}`}><ExternalLink size={16} /> Abrir neste navegador</Link>
+            <a className="btn-secondary" href={`/api/oauth/login?next=${encodeURIComponent(hrefWithAccount("/perfis", activeAccountId))}`}><ExternalLink size={16} /> Abrir neste navegador</a>
             <button className="btn-secondary" onClick={copyInstagramConnectUrl} type="button"><Copy size={16} /> Copiar link</button>
           </div>
         </div>
