@@ -261,15 +261,27 @@ if [[ "$START_NOW" =~ ^[Ss]$ ]]; then
   # Habilitar schema uaiflow no Supabase Studio/PostgREST automaticamente
   if [ -n "$REST_CONTAINER" ]; then
     SUPABASE_DIR=$(docker inspect "$REST_CONTAINER" --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' 2>/dev/null)
+    if [ -z "$SUPABASE_DIR" ] || [ ! -f "$SUPABASE_DIR/.env" ]; then
+      ENV_FILE=$(grep -rl "PGRST_DB_SCHEMAS" /root /opt /var/www /home 2>/dev/null | head -n1)
+      [ -n "$ENV_FILE" ] && SUPABASE_DIR=$(dirname "$ENV_FILE")
+    fi
     if [ -n "$SUPABASE_DIR" ] && [ -f "$SUPABASE_DIR/.env" ]; then
-      if ! grep -q "uaiflow" "$SUPABASE_DIR/.env"; then
-        echo -e "${BLUE}[*] Habilitando schema uaiflow no Supabase Studio...${NC}"
-        sed -i -E 's/^(PGRST_DB_SCHEMAS=.*)/\1,uaiflow/' "$SUPABASE_DIR/.env"
-        docker restart "$REST_CONTAINER" 2>/dev/null || true
-        META_CONTAINER=$(docker ps -q -f name=meta | head -n1)
-        [ -n "$META_CONTAINER" ] && docker restart "$META_CONTAINER" 2>/dev/null || true
+      CURRENT_SCHEMAS=$(grep "^PGRST_DB_SCHEMAS=" "$SUPABASE_DIR/.env" | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+      [ -z "$CURRENT_SCHEMAS" ] && CURRENT_SCHEMAS="public,storage,graphql_public"
+      if [[ ! "$CURRENT_SCHEMAS" =~ "uaiflow" ]]; then
+        echo -e "${BLUE}[*] Habilitando schema uaiflow no PostgREST e Supabase Studio...${NC}"
+        NEW_SCHEMAS="${CURRENT_SCHEMAS},uaiflow"
+        sed -i -E "s|^PGRST_DB_SCHEMAS=.*|PGRST_DB_SCHEMAS=\"${NEW_SCHEMAS}\"|" "$SUPABASE_DIR/.env"
+        cd "$SUPABASE_DIR"
+        docker compose up -d --force-recreate $(docker compose config --services 2>/dev/null | grep -E 'rest|meta') 2>/dev/null || docker compose up -d
+        cd - > /dev/null
       fi
     fi
+  fi
+
+  # Notificar reload de schema no PostgREST
+  if [ -n "$DB_CONTAINER" ]; then
+    docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -c "SELECT pg_notify('pgrst', 'reload schema');" > /dev/null 2>&1 || true
   fi
 
   echo -e "${GREEN}[✓] Containers iniciados com sucesso!${NC}"
